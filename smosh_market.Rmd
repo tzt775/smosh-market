@@ -1,0 +1,106 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, message = FALSE, error = FALSE}
+install.packages("dplyr")
+library(dplyr)
+```
+
+
+```{r}
+PATH <- ""
+smosh <- read.csv(paste(PATH, "smosh_market.csv", sep = ""))
+head(smosh)
+```
+
+
+```{r}
+smosh <- smosh %>% rename("Total Viewers" = "Total.Viewers")
+sm <- ts(smosh["Total Viewers"], start = c(2022, 44), frequency = 45)
+plot(sm, main = "Smosh Pit Total Weekly Total Views")
+```
+
+- Non-stationary in mean
+- Dataframe only about a year, likely won't track seasonality (if any) and 
+unlikely due to nature of channel
+- Mild viewership jump around June 2023 (steeper slope after jump?)
+
+```{r}
+growth <- diff(sm)
+
+which.max(growth)
+growth[23]
+
+which.min(growth)
+growth[2]
+
+# 24 and 25 (now 23 and 24) have most significant increases in viewership 
+# (Anthony returns - 24th Anthony specific videos (in title))
+```
+
+
+```{r}
+plot(growth, type = "l", main = "Smosh Pit Viewership Changes in 2023")
+
+# 5 noticeable peaks (7, 18/19, 23/24, 32, 45)
+# post big peak - different mean, variance pretty constant aside from peaks
+```
+
+- Mean more stationary...how significant is difference after massive peak
+- Variance changes: some kind of seasonality or caused by outside events (like major peak)?? - appear about eqidistant of eachother
+
+
+```{r}
+# roa = return of Anthony
+
+pre_roa <- growth[1:22]
+post_roa <- growth[24:50]
+mean(pre_roa)
+mean(post_roa)
+```
+
+```{r}
+plot(pre_roa, type = "l", col = "blue", ylim = c(0, 30000000), ylab = "Change in Viewership", main = "Change in Viewership Before and After Anthony's Return")
+lines(post_roa, type = "l", col = "green")
+points(x = c(0.3, 0.3, 0.3), c(mean(pre_roa), mean(post_roa), max(growth)), col = c("blue", "green", "black"), pch = 19)
+legend(14, 30000000, legend = c("Pre-R.O.A.", "Post-R.O.A.", "Max Viewer Change"), fill = c("blue", "green", "black"))
+```
+
+Post return of Anthony has a sustained increase in viewership
+
+```{r}
+acf(growth, lag.max = 50)
+```
+
+MA(2)? - ACF does not appear to support white noise
+- exponential decay + damped sinusoids
+
+```{r}
+pacf(growth, lag.max = 50)
+```
+
+
+
+```{r}
+
+```
+
+
+Notes:
+Viewers instead of subscribers
+- Smosh channels old and contained many kinds of content and cast members 
+(don't have accurate data for those)
+- Viewership based on number of new channel views in 8 day period
+
+8 day period instead of 7/1 week
+- this was based on the way videos were posted on the channel
+- 45 8 day blocks (7 days inclusive)
+
+Use viewership changes vs total views 
+- total views don't capture changes in viewership well (ie. 200,000 is a big 
+jump over 8 days, but very small compared to 3mil)
+
+Anthony usually makes appearences on Smosh main channel and Smosh Pit. 
+- Pit felt more interesting to follow overtime since all the cast appears there
