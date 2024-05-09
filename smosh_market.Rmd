@@ -4,11 +4,13 @@ output: html_notebook
 ---
 
 ```{r, message = FALSE, error = FALSE}
-install.packages("dplyr")
-install.packages("tidyverse")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+#install.packages("astsa")
 
 library(dplyr)
 library(tidyverse)
+library(astsa)
 ```
 
 
@@ -137,7 +139,7 @@ channel_growth
 ```
 
 ```{r}
-par(mfrow = c(3, 1), mar = c(2, 5, 2, 2))
+par(mfrow = c(3, 1), mar = c(2, 6, 2, 2))
 ts.plot(channel_growth["Viewer Growth"], xlab = "Time", 
         ylab = "Viewer Growth")
 ts.plot(channel_growth["Total Views of Videos Posted that Week"], 
@@ -160,23 +162,35 @@ Video duration consistent aside from December and January when they posted 4-9
 hour themed compilations of videos from that year.
 
 
+### First focus on viewership only
+
 ```{r}
-acf(growth, lag.max = 50)
+acf(channel_growth$`Viewer Growth`, lag.max = 50)
 ```
 
-MA(2)? - ACF does not appear to support white noise
-- exponential decay + damped sinusoids
-
 ```{r}
-pacf(growth, lag.max = 50)
+pacf(channel_growth$`Viewer Growth`, lag.max = 50)
 ```
 
 
+```{r}
+ts.plot(diff(channel_growth$`Viewer Growth`))
+
+# AR1, MA1
+sarima(channel_growth$`Viewer Growth`, 1, 0, 0, P = 0, D = 1, Q = 0, S = 4)
+sarima(channel_growth$`Viewer Growth`, 1, 0, 1, P = 0, D = 1, Q = 0, S = 4)
+# AR(1) almost identical to ARMA(1, 1), MA adds nothing
+
+# autocorrelation still notable at lag 4
+# 5th (3rd) peak disguised by interruption?
+sarima(channel_growth$`Viewer Growth`, 1, 0, 0, P = 0, D = 1, Q = 0, S = 5)
+```
+
+Barring interruption, time series appears stationary using 
+SAIRMA(1, 0, 1) x (0, 1, 0)5
 
 ```{r}
-arima(x = growth, order = c(0, 0, 2))
-arima(x = growth, order = c(1, 0, 2))
-arima(x = growth, order = c(0, 0, 1))
+
 ```
 
 
