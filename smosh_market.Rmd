@@ -1,16 +1,20 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r, message = FALSE, error = FALSE}
 #install.packages("dplyr")
 #install.packages("tidyverse")
 #install.packages("astsa")
+#install.packages("forecast")
 
 library(dplyr)
 library(tidyverse)
 library(astsa)
+library(forecast)
 ```
 
 
@@ -73,8 +77,16 @@ points(x = c(0.3, 0.3, 0.3), c(mean(pre_roa), mean(post_roa), max(growth)), col 
 legend(14, 30000000, legend = c("Pre-R.O.A.", "Post-R.O.A.", "Max Viewer Change"), fill = c("blue", "green", "black"))
 ```
 
-Post return of Anthony has a sustained increase in viewership
+Post return of Anthony has a sustained increase in viewership.
+Jump at end of pre-ROA period and dip at end of post-ROA period - 
+is time series stabilizing around specific mean or residual effect 
+of week 19 peak?
 
+No apparent trend before or after Anthony's return.
+Potential seasonality?
+Effect of intervention mimiking autocorrelation?
+
+#### Finish formatting dataframe
 
 ```{r}
 video1_len <- strcapture(".*, ([0-9]*:)*([0-9]*):([0-9]*)).*", smosh$Video.1,
@@ -124,7 +136,7 @@ channel_growth["Total.Duration.of.Videos.Posted.That.Week"] <-
 
 ```{r}
 channel_growth <- channel_growth[-c(1), ]
-channel_growth["Viewer Growth"] <- growth[, 1]
+channel_growth["Viewer Growth"] <- as.numeric(growth[, 1])
 
 channel_growth <- channel_growth %>% 
   relocate("Viewer Growth", .after = "Total Viewers") %>% rename(
@@ -138,6 +150,81 @@ rownames(channel_growth) <- NULL
 channel_growth
 ```
 
+
+## First focus on viewership only
+
+```{r}
+hist(growth)
+```
+
+```{r}
+acf(growth, lag.max = 50)
+
+# MA(2)?
+```
+
+```{r}
+pacf(growth, lag.max = 50)
+
+#only significant at lag 1 (AR(1))
+```
+
+
+Forecasting growth without intervention
+
+```{r}
+# train - test split
+train_pre <- pre_roa[1:17]
+test_pre <- pre_roa[18:22]
+```
+
+```{r}
+# AR(1) model
+
+#t <- 1:length(train_pre)
+#noint_model <- lm(formula = pre_roa ~ t)
+
+ar1 <- sarima(train_pre, 1, 0, 0, P = 0, D = 0, Q = 0)
+
+# ARMA(1, 2)
+ar1_ma2 <- sarima(train_pre, 1, 0, 2, P = 0, D = 0, Q = 0)
+
+# ARMA(1, 1)
+ar1_ma1 <- sarima(train_pre, 1, 0, 1, P = 0, D = 0, Q = 0)
+
+# models virtually indistinguishable from eachother (AR(1) slightly 
+# lower AIC and BIC and has less parameters)
+print(ar1$ICs)
+print(ar1_ma2$ICs)
+print(ar1_ma1$ICs)
+
+# no pattern in residuals (no autocorrelation)
+# standardized residuals over time still show some 
+```
+
+
+```{r}
+# test model on test data
+#ar1_forecast <- forecast(train_pre, h = 5)
+ar1_forecast <- sarima.for(ts(train_pre), n.ahead = 5, 1, 0, 0)
+ar1_pred <- ar1_forecast$pred
+ar1_pred
+
+#unlist(list(pre_roa, noint_pred))
+
+# predictions for test_pre
+mape <- function(actual, prediction){
+  return(mean(abs((actual - prediction)/actual)) * 100)
+}
+mape(test_pre, ar1_pred)
+# high mape makes sense - peak right after train set ends
+```
+
+
+
+
+## Multivariate analysis
+
 ```{r}
 par(mfrow = c(3, 1), mar = c(2, 6, 2, 2))
 ts.plot(channel_growth["Viewer Growth"], xlab = "Time", 
@@ -148,65 +235,42 @@ ts.plot(channel_growth["Total Duration of Videos Posted that Week"],
         xlab = "Time", ylab = "Total Video Duration")
 ```
 
-Viewership from the time it was measured, but average video views recorded second 
-week of January, so they include all views from video posted until January 2024. 
 Sometimes, peaks in viewership do not coincide with that weeks video views and 
-vice versa. Videos that may have performed well at the time may not have performed 
-well in comparison to other weeks.
+vice versa. Videos that may have performed well at the time may not have performed well in comparison to other weeks.
 
-Videos posted during Anthony's return have maintained the highest overall views 
+Videos posted during Anthony's return have maintained the highest overall views
 at the time and going foreward.
-
 
 Video duration consistent aside from December and January when they posted 4-9 
 hour themed compilations of videos from that year.
 
 
-### First focus on viewership only
-
-```{r}
-acf(channel_growth$`Viewer Growth`, lag.max = 50)
-```
-
-```{r}
-pacf(channel_growth$`Viewer Growth`, lag.max = 50)
-```
-
-
-```{r}
-ts.plot(diff(channel_growth$`Viewer Growth`))
-
-# AR1, MA1
-sarima(channel_growth$`Viewer Growth`, 1, 0, 0, P = 0, D = 1, Q = 0, S = 4)
-sarima(channel_growth$`Viewer Growth`, 1, 0, 1, P = 0, D = 1, Q = 0, S = 4)
-# AR(1) almost identical to ARMA(1, 1), MA adds nothing
-
-# autocorrelation still notable at lag 4
-# 5th (3rd) peak disguised by interruption?
-sarima(channel_growth$`Viewer Growth`, 1, 0, 0, P = 0, D = 1, Q = 0, S = 5)
-```
-
-Barring interruption, time series appears stationary using 
-SAIRMA(1, 0, 1) x (0, 1, 0)5
-
-```{r}
-
-```
+---
 
 
 Notes:
+
 Viewers instead of subscribers
 - Smosh channels old and contained many kinds of content and cast members 
 (don't have accurate data for those)
+
 - Viewership based on number of new channel views in 8 day period
+
+- Viewership from the time it was measured, but average video views 
+recorded second week of January, so they include all views from video 
+posted until January 2024. 
 
 8 day period instead of 7/1 week
 - this was based on the way videos were posted on the channel
+
 - 45 8 day blocks (7 days inclusive)
 
 Use viewership changes vs total views 
 - total views don't capture changes in viewership well (ie. 200,000 is a big 
 jump over 8 days, but very small compared to 3mil)
 
+- no way to know who watched what videos (and different series/video types have different audiences)
+
 Anthony usually makes appearences on Smosh main channel and Smosh Pit. 
+
 - Pit felt more interesting to follow overtime since all the cast appears there
